@@ -1,94 +1,79 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from 'react';
+import initSqlJs from 'sql.js';
 
-export default function DatenbankDetektive() {
-  const [query, setQuery] = useState("");
-  const [result, setResult] = useState([]);
-  const [fall, setFall] = useState("fall1");
+export default function App() {
+  const [db, setDb] = useState(null);
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
 
-  const fakeData = {
-    zeugen: [
-      { id: 1, name: "Max Müller", tatort: "Hauptstraße 5", zeit: "20:30" },
-      { id: 2, name: "Lena Schulz", tatort: "Hauptstraße 5", zeit: "21:00" },
-      { id: 3, name: "Tom Becker", tatort: "Parkallee", zeit: "20:45" },
-      { id: 4, name: "Sami Yilmaz", tatort: "Bahnhof", zeit: "18:00" },
-    ],
-    alibis: [
-      { person: "Lena Schulz", status: "bestätigt" },
-      { person: "Tom Becker", status: "bestätigt" },
-      { person: "Sami Yilmaz", status: "bestätigt" },
-    ],
-    telefonate: [
-      { von: "Max Müller", an: "Unbekannt", uhrzeit: "20:15" },
-      { von: "Sami Yilmaz", an: "Tom Becker", uhrzeit: "19:50" },
-    ],
+  const sqlInit = async () => {
+    const SQL = await initSqlJs({ locateFile: file => `https://sql.js.org/dist/${file}` });
+    const db = new SQL.Database();
+
+    db.run(`CREATE TABLE personen (id INTEGER, name TEXT, rolle TEXT);
+            CREATE TABLE tatorte (id INTEGER, ort TEXT, stadt TEXT, zeit TEXT);
+            CREATE TABLE beobachtungen (id INTEGER, person_id INTEGER, tatort_id INTEGER, uhrzeit TEXT);
+            CREATE TABLE alibis (id INTEGER, person_id INTEGER, status TEXT);
+            CREATE TABLE telefonate (id INTEGER, von_id INTEGER, an_id INTEGER, uhrzeit TEXT);
+            CREATE TABLE fahrzeuge (id INTEGER, kennzeichen TEXT, besitzer_id INTEGER);
+
+            INSERT INTO personen VALUES (1, 'Max Müller', 'Zeuge'), (2, 'Lena Schulz', 'Täter'), (3, 'Tom Becker', 'Zeuge');
+            INSERT INTO tatorte VALUES (1, 'Mozartstraße 12', 'Berlin', '22:00');
+            INSERT INTO beobachtungen VALUES (1, 1, 1, '22:00'), (2, 2, 1, '22:00');
+            INSERT INTO alibis VALUES (1, 1, 'bestätigt');
+            INSERT INTO telefonate VALUES (1, 1, NULL, '20:15');
+            INSERT INTO fahrzeuge VALUES (1, 'B-XY 1234', 2);`);
+
+    setDb(db);
   };
 
-  const handleRunQuery = () => {
-    if (fall === "fall1" && query.includes("personen ohne Alibi")) {
-      const zeugenOhneAlibi = fakeData.zeugen.filter(
-        (z) => !fakeData.alibis.find((a) => a.person === z.name)
-      );
-      setResult(zeugenOhneAlibi);
-    } else if (fall === "fall2" && query.includes("telefoniert")) {
-      const telefoniert = fakeData.telefonate.filter(
-        (t) => t.von === "Max Müller"
-      );
-      setResult(telefoniert);
-    } else {
-      setResult([{ error: "Unbekannte Abfrage oder falscher Fall." }]);
+  useEffect(() => {
+    sqlInit();
+  }, []);
+
+  const runQuery = () => {
+    try {
+      setError('');
+      const res = db.exec(query);
+      setResult(res);
+    } catch (e) {
+      setResult(null);
+      setError(e.message);
     }
-  };
-
-  const faelle = {
-    fall1: {
-      titel: "Fall 1: Alibi-Check",
-      beschreibung:
-        "Ein Diebstahl ereignete sich in der Hauptstraße 5 um 20:30 Uhr. Wer war dort und hat KEIN Alibi?",
-      tipp: "Versuche 'personen ohne Alibi' einzugeben.",
-    },
-    fall2: {
-      titel: "Fall 2: Verdächtiger Anruf",
-      beschreibung:
-        "Ein mysteriöser Anruf ging kurz vor dem Diebstahl ein. Wer hat um 20:15 Uhr telefoniert?",
-      tipp: "Versuche 'telefoniert' einzugeben, um Verbindungen zu prüfen.",
-    },
   };
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
-      <h1 style={{ fontSize: '2rem', color: '#1e3a8a' }}>🕵️ Datenbank-Detektive</h1>
+      <h1>🕵️ SQL Detektive</h1>
+      <p><strong>Fall 1:</strong> Wer war am Tatort Mozartstraße 12 um 22:00 Uhr und hat kein Alibi?</p>
+      <p><strong>Fall 2:</strong> Wer hat um 20:15 Uhr telefoniert?</p>
+      <p><strong>Fall 3:</strong> Wer besitzt das Fahrzeug mit Kennzeichen B-XY 1234 und hat kein Alibi?</p>
 
-      <div style={{ marginTop: '1rem' }}>
-        <button onClick={() => setFall("fall1")} style={{ marginRight: '1rem' }}>
-          Fall 1
-        </button>
-        <button onClick={() => setFall("fall2")}>
-          Fall 2
-        </button>
-      </div>
+      <textarea value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Gib deine SQL-Abfrage hier ein...'></textarea>
+      <button onClick={runQuery}>Abfrage ausführen</button>
 
-      <div style={{ marginTop: '2rem' }}>
-        <h2>{faelle[fall].titel}</h2>
-        <p>{faelle[fall].beschreibung}</p>
-
-        <textarea
-          rows={4}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="z.B. personen ohne Alibi"
-          style={{ width: '100%', padding: '0.5rem', marginTop: '1rem' }}
-        />
-
-        <button onClick={handleRunQuery} style={{ marginTop: '1rem' }}>
-          Query ausführen
-        </button>
-
-        <p style={{ color: 'gray', fontStyle: 'italic' }}>💡 {faelle[fall].tipp}</p>
-
-        <pre style={{ background: '#f3f4f6', padding: '1rem', marginTop: '1rem' }}>
-          {JSON.stringify(result, null, 2)}
-        </pre>
-      </div>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {result && result.length > 0 && (
+        <table border='1' cellPadding='5' style={{ marginTop: '1rem', background: '#fff' }}>
+          <thead>
+            <tr>
+              {result[0].columns.map((col) => (
+                <th key={col}>{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result[0].values.map((row, idx) => (
+              <tr key={idx}>
+                {row.map((val, i) => (
+                  <td key={i}>{val}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
